@@ -86,7 +86,15 @@ screen (iOS 16.4+), and permission must be requested from a tap.
 ## Shipping
 
 Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds and
-publishes to GitHub Pages. About a minute.
+force-pushes `dist/` to the **`gh-pages` branch**. Pages serves that branch.
+About a minute.
+
+It publishes to a branch rather than through `actions/deploy-pages` on
+purpose: the Actions source has to be switched on by hand in repository
+settings, and the workflow token may not do it ("Resource not accessible by
+integration"). Pushing a `gh-pages` branch enabled Pages by itself and needs
+no setup, so the repo deploys itself from a clean clone. Do not switch this
+back without checking the Pages source first.
 
 `vite.config.ts` sets `base: '/menayot/'` because this is a GitHub Pages
 *project* page. **Never hardcode a leading `/` in an asset path** — use

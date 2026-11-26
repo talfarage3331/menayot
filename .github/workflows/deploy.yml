@@ -7,11 +7,8 @@ on:
   # Lets you redeploy by hand from the Actions tab without pushing anything.
   workflow_dispatch:
 
-# Allow the workflow to publish to Pages via OIDC.
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 # Never let two deploys race; always finish the one in flight.
 concurrency:
@@ -19,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,20 +30,35 @@ jobs:
 
       - run: npm run build
 
-      # Pages must already be enabled with "GitHub Actions" as its source.
-      # The workflow token is not allowed to turn Pages on by itself.
-      - uses: actions/configure-pages@v5
+      # Pages serves this repository from the `gh-pages` branch rather than
+      # from an Actions artifact. That is deliberate: enabling the Actions
+      # source needs a manual visit to repository settings, and the workflow
+      # token is not allowed to turn it on (it fails with "Resource not
+      # accessible by integration"). Publishing to a branch needs no setup at
+      # all, so a fresh clone of this repo deploys itself.
+      - name: Publish the build to gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
+          work="$RUNNER_TEMP/site"
+          rm -rf "$work"
+          cp -r dist "$work"
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          # Without this, Pages runs the output through Jekyll, which drops
+          # any file or directory whose name starts with an underscore.
+          touch "$work/.nojekyll"
+
+          cd "$work"
+          git init -q
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7}"
+
+          # The branch holds only the current build, so each deploy replaces
+          # it outright instead of accumulating history nobody reads.
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/gh-pages
