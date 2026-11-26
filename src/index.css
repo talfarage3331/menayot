@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Heebo', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink-950: #060a14;
+  --color-ink-900: #0b1120;
+  --color-ink-800: #111a2e;
+  --color-ink-700: #1b2740;
+  --color-ink-600: #27354f;
+
+  --color-up: #34d399;
+  --color-down: #f87171;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-ink-950);
+    /* keep the page from bouncing under the iOS standalone status bar */
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    margin: 0;
+    color: #e2e8f0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Ticker symbols and figures stay left-to-right inside the RTL layout. */
+  [dir='ltr'] {
+    unicode-bidi: isolate;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
