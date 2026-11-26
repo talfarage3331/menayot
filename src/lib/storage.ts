@@ -92,7 +92,7 @@ function write(key: string, value: unknown): void {
   }
 }
 
-function isHolding(value: unknown): value is Holding {
+export function isHolding(value: unknown): value is Holding {
   if (typeof value !== 'object' || value === null) return false
   const h = value as Record<string, unknown>
   return (

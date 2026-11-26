@@ -40,6 +40,11 @@ export function usePortfolio() {
     }))
   }, [])
 
+  /** Replaces the whole portfolio, for restoring a backup file. */
+  const replaceHoldings = useCallback((holdings: Holding[]) => {
+    setState((current) => ({ ...current, holdings }))
+  }, [])
+
   /**
    * Fills in company names the user left blank once the feed supplies them.
    * Runs when quotes arrive, so a position added as bare "AAPL" picks up
@@ -65,6 +70,7 @@ export function usePortfolio() {
     addHolding,
     updateHolding,
     removeHolding,
+    replaceHoldings,
     adoptNames,
   }
 }

@@ -59,6 +59,11 @@ The way round that, without any paid service or extra account:
 A holding whose symbol is not in the universe falls back to a hand-typed
 `manualPrice`, and the UI says so.
 
+284 symbols are tracked, in 15 requests per run. After adding one, check the
+run's log: the provider silently serves no data for a handful of perfectly
+valid tickers (BK, MMC and K were removed for that reason, and neither the
+batch nor the per-symbol endpoint returns them).
+
 GitHub runs scheduled workflows on a best-effort basis, so prices can be
 5–15 minutes old. `Header` always shows how stale they are; never present them
 as tick-by-tick live.
@@ -103,6 +108,7 @@ src/
     quotes.ts           Fetching the feed, resolving a holding's price
     storage.ts          localStorage, validation, v1→v2 migration
     notify.ts           Notification permission and display
+    backup.ts           Export and restore the portfolio as a JSON file
   hooks/
     usePortfolio.ts     Owns holdings and every action on them
     useQuotes.ts        Keeps the feed current (timer + on refocus)
@@ -178,13 +184,16 @@ provider; CI does not.
 
 ## Known gaps, in rough priority order
 
-1. **Push when the app is closed.** The headline missing feature. Needs a
-   server: somewhere to store push subscriptions and VAPID keys, plus a job
-   that checks prices and posts to the push endpoints. Cloudflare Workers on
-   the free plan fits (cron down to a minute, free KV/D1). Costs the owner one
-   free account.
-2. **Export / import.** Data is localStorage-only; clearing the browser loses
-   it. A JSON download and upload is a cheap safety net.
-3. **Price history and a chart** of portfolio value over time.
-4. **A bigger universe**, or a way to request a symbol without editing a file.
-5. **Dividends and fees** in the profit calculation.
+1. **Push when the app is closed.** The headline missing feature, and the only
+   one that cannot be built here. It needs a server: somewhere to store push
+   subscriptions and VAPID keys, plus a job that checks prices and posts to the
+   push endpoints. GitHub Actions can do the sending — Web Push is just a
+   signed HTTPS POST — but there is nowhere safe to keep subscriptions, because
+   a browser cannot write to GitHub without an exposed token, and the repo is
+   public. Cloudflare Workers on the free plan closes it (cron down to a
+   minute, free KV or D1, no credit card). Costs the owner one free account.
+2. **Price history and a chart** of portfolio value over time. Would need the
+   price Action to append to a history file rather than replace it.
+3. **A watchlist** — alerts on symbols the user does not own.
+4. **Dividends and fees** in the profit calculation.
+5. **A way to request a symbol** without editing `universe.json`.

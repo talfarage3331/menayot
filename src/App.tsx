@@ -13,6 +13,7 @@ import { EmptyState } from './components/EmptyState'
 import { InstallHint } from './components/InstallHint'
 import { NotificationSetup } from './components/NotificationSetup'
 import { AlertBanner } from './components/AlertBanner'
+import { BackupPanel } from './components/BackupPanel'
 
 /** Which position the edit sheet is open for: none, a new one, or an existing one. */
 type SheetState = { kind: 'closed' } | { kind: 'new' } | { kind: 'edit'; holding: Holding }
@@ -79,6 +80,10 @@ export default function App() {
               />
               <Allocation stats={stats} />
               <NotificationSetup />
+              <BackupPanel
+                holdings={portfolio.holdings}
+                onRestore={portfolio.replaceHoldings}
+              />
             </>
           ) : (
             <EmptyState onAdd={() => setSheet({ kind: 'new' })} />
