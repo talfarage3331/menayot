@@ -46,7 +46,7 @@ without also adding a real FX source.
 The quote provider sends **no CORS headers**, so the browser cannot call it.
 The way round that, without any paid service or extra account:
 
-1. `.github/workflows/prices.yml` runs every 5 minutes while US markets are
+1. `.github/workflows/prices.yml` runs every 10 minutes while US markets are
    open and calls `scripts/fetch-prices.mjs`.
 2. That script reads `scripts/universe.json`, fetches quotes 20 symbols at a
    time (the upstream limit), and writes `prices.json`.
@@ -65,8 +65,17 @@ valid tickers (BK, MMC and K were removed for that reason, and neither the
 batch nor the per-symbol endpoint returns them).
 
 GitHub runs scheduled workflows on a best-effort basis, so prices can be
-5–15 minutes old. `Header` always shows how stale they are; never present them
-as tick-by-tick live.
+10–20 minutes old: the schedule itself may slip, and raw.githubusercontent.com
+caches for 5 minutes on top. `Header` always shows how stale they are; never
+present them as tick-by-tick live.
+
+The schedule is deliberately not `*/5`. At GitHub's documented 5-minute floor
+no scheduled run fired at all over two hours — runs at the floor are dropped
+first under load. If prices go stale again, check
+`list_workflow_runs` filtered to the `schedule` event before changing anything
+else, and trigger `prices.yml` by hand (`workflow_dispatch`) to refresh now.
+Genuinely frequent updates need a real scheduler, which is the same server
+that would solve push.
 
 ## How alerts work, and their one real limit
 
