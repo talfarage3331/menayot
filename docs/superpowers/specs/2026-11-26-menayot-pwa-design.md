@@ -148,3 +148,110 @@ raise errors.
 Live prices, export/import, charts, per-holding currency, dividends and fees,
 accounts and sync. Each is listed in `CLAUDE.md` so a later session picks the
 right next step without re-deriving the context.
+
+---
+
+# Addendum — real-time prices and price alerts
+
+**Date:** 2026-11-26, same day, after the owner stated the real requirements.
+
+## What changed
+
+The owner added three requirements that the original design could not meet:
+
+1. The Hebrew must have no text or bidi errors.
+2. Users register holdings and get **push notifications on their phone**,
+   including on a **minimum and maximum price** they set per holding.
+3. The system must receive data in **real time**.
+
+He also stated a strong preference: **no new accounts** if it can be avoided,
+and otherwise build everything that does not depend on them.
+
+A static site cannot do (2) and (3) on its own. This addendum records what was
+built, what was not, and why.
+
+## Markets
+
+US-listed only, by the owner's choice. Free real-time data covers US exchanges;
+Tel Aviv-listed stocks are generally not available without paying. Israeli
+companies that dual-list in New York (TEVA, NICE, MNDY, WIX, GLBE…) are in the
+tracked universe and work normally.
+
+This is why the portfolio currency setting was **removed**. All instruments are
+quoted in dollars, and a currency selector that displayed a dollar figure with
+a shekel sign would have been exactly the class of bug the owner complained
+about. Dollars throughout, no exchange rates.
+
+## Prices without a server or an account
+
+The constraint that shaped everything: the quote provider sends no
+`access-control-allow-origin` header, so a browser cannot call it. Verified by
+inspecting the response headers directly rather than assuming.
+
+The route found, which needs no account at all:
+
+- A scheduled GitHub Action calls the provider **server-side**, where CORS does
+  not apply, in batches of 20 symbols (the upstream maximum, found by probing:
+  20 succeeds, 25 returns 400).
+- It force-pushes the resulting `prices.json` to a `data` branch. Force-pushing
+  keeps that branch at one commit, so a file written every five minutes does
+  not grow the repository without bound.
+- The app fetches it from `raw.githubusercontent.com`, which **does** send
+  `access-control-allow-origin: *` — verified, not assumed.
+
+Committing prices to `main` instead was rejected: GitHub Pages throttles builds
+to roughly ten an hour, and a five-minute cadence would exceed that.
+
+"Real time" therefore means 5–15 minutes, since GitHub runs scheduled workflows
+on a best-effort basis. The UI always shows the feed's age rather than implying
+it is live.
+
+## Alerts
+
+`lib/alerts.ts` is pure: given holdings, quotes and the previously recorded
+state, it returns only **newly** crossed thresholds. The side of the band a
+holding sits on is persisted, so an alert fires on the transition into a breach
+and not again until the price returns inside the band. Verified end to end,
+including that a repeat refresh does not re-fire.
+
+### The limit, stated plainly
+
+Alerts fire **only while the app is running**. Notifying a phone whose app is
+closed requires Web Push: a server holding each subscriber's push subscription
+and VAPID keys, and a job that posts to the push endpoints. That server needs
+an account, which the owner asked to avoid for now.
+
+Cloudflare Workers on the free plan is the intended home when he wants it —
+cron down to a minute, free KV or D1 for subscriptions, and Web Push is just a
+signed HTTP POST. It costs one free account and no money.
+
+On iOS there is a second constraint that no amount of engineering removes:
+notifications are unavailable until the web app is added to the home screen
+(iOS 16.4+), and permission must be requested from a tap. Confirmed against
+Apple's own documentation. The UI explains this rather than failing silently.
+
+## Hebrew and RTL
+
+Treated as a requirement with its own verification, not a polish pass. Found
+and fixed:
+
+- **Currency symbols on the wrong side.** `Intl` threads invisible RTL marks
+  (U+200F) through Hebrew currency output; inside a `dir="ltr"` element those
+  marks reorder the string. Now formatted in `en-US`, which is also the correct
+  convention for dollars, with the marks stripped as a guard.
+- **`.Apple Inc`** — a Latin company name in an RTL paragraph had its trailing
+  period moved to the wrong end. Free text of unknown direction now carries
+  `dir="auto"`, which isolates the run and picks direction from its content.
+- **A mirrored arrow.** `←` is bidi-mirrored and can render pointing the
+  opposite way in an RTL paragraph, which would have made a step-by-step
+  install instruction read backwards. Replaced with words.
+- **Invisible characters in the source itself.** Two literal U+200E/U+200F
+  characters had ended up inside a regular expression, where no reviewer would
+  ever see them. Replaced with `\uXXXX` escapes, and the whole tree scanned.
+
+## Deployment note
+
+`actions/configure-pages` was asked to enable Pages automatically so the owner
+would not have to touch repository settings from a phone. It fails with
+"Resource not accessible by integration": the workflow token is not permitted
+to create a Pages site. Removed. Enabling Pages is a one-time manual step.

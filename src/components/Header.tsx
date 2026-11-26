@@ -1,13 +1,14 @@
-import type { CurrencyCode } from '../types'
-import { CURRENCIES } from '../lib/money'
+import { formatAge } from '../lib/money'
 
 type Props = {
-  currency: CurrencyCode
-  onCurrencyChange: (currency: CurrencyCode) => void
+  updatedAt: string | null
+  isLoading: boolean
+  error: string | null
+  onRefresh: () => void
 }
 
-/** App title plus the portfolio-wide currency switch. */
-export function Header({ currency, onCurrencyChange }: Props) {
+/** App title plus the state of the price feed. */
+export function Header({ updatedAt, isLoading, error, onRefresh }: Props) {
   return (
     <header className="flex items-center justify-between gap-3 pt-2 pb-5">
       <div className="flex items-center gap-2.5">
@@ -18,28 +19,19 @@ export function Header({ currency, onCurrencyChange }: Props) {
         </div>
       </div>
 
-      <div
-        role="group"
-        aria-label="מטבע התיק"
-        className="flex rounded-xl bg-ink-800 p-1 ring-1 ring-ink-700"
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={isLoading}
+        className="flex items-center gap-2 rounded-xl bg-ink-800 px-3 py-2 text-xs ring-1 ring-ink-700 transition-colors hover:bg-ink-700 disabled:opacity-60"
       >
-        {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
-          <button
-            key={code}
-            type="button"
-            onClick={() => onCurrencyChange(code)}
-            aria-pressed={currency === code}
-            title={CURRENCIES[code].label}
-            className={`h-8 w-9 rounded-lg text-sm font-semibold transition-colors ${
-              currency === code
-                ? 'bg-ink-600 text-slate-50'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {CURRENCIES[code].symbol}
-          </button>
-        ))}
-      </div>
+        <span className={isLoading ? 'animate-spin' : ''} aria-hidden="true">
+          ⟳
+        </span>
+        <span className={error ? 'text-down' : 'text-slate-400'}>
+          {error ?? formatAge(updatedAt)}
+        </span>
+      </button>
     </header>
   )
 }

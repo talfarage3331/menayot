@@ -37,7 +37,7 @@ export function InstallHint() {
 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-slate-100">
-          להתקין את מניות כאפליקציה?
+          להתקין את "מניות" כאפליקציה?
         </p>
         {prompt ? (
           <button
@@ -52,7 +52,7 @@ export function InstallHint() {
           </button>
         ) : (
           <p className="mt-1 text-sm leading-relaxed text-slate-400">
-            בספארי: כפתור השיתוף למטה ← "הוספה למסך הבית".
+            בספארי: כפתור השיתוף למטה, ואז "הוספה למסך הבית".
           </p>
         )}
       </div>

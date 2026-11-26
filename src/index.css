@@ -27,8 +27,13 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Ticker symbols and figures stay left-to-right inside the RTL layout. */
-  [dir='ltr'] {
+  /*
+   * Ticker symbols and figures stay left-to-right inside the RTL layout, and
+   * free text of unknown direction (company names) is isolated so trailing
+   * punctuation does not jump to the wrong end.
+   */
+  [dir='ltr'],
+  [dir='auto'] {
     unicode-bidi: isolate;
   }
 

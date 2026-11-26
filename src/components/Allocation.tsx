@@ -1,10 +1,8 @@
-import type { CurrencyCode } from '../types'
 import type { PortfolioStats } from '../lib/portfolio'
 import { formatMoney, formatPercent } from '../lib/money'
 
 type Props = {
   stats: PortfolioStats
-  currency: CurrencyCode
 }
 
 // Distinct hues so neighbouring slices never read as the same colour.
@@ -14,7 +12,7 @@ const SLICE_COLORS = [
 ]
 
 /** How the portfolio's value is split across its positions. */
-export function Allocation({ stats, currency }: Props) {
+export function Allocation({ stats }: Props) {
   const slices = stats.allocation.filter((slice) => slice.value > 0)
   if (slices.length === 0) return null
 
@@ -50,7 +48,7 @@ export function Allocation({ stats, currency }: Props) {
               {formatPercent(slice.share)}
             </span>
             <span dir="ltr" className="w-24 text-left tabular-nums text-slate-300">
-              {formatMoney(slice.value, currency)}
+              {formatMoney(slice.value)}
             </span>
           </li>
         ))}

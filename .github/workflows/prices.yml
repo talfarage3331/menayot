@@ -1,0 +1,56 @@
+name: Update prices
+
+on:
+  schedule:
+    # Every 5 minutes while US markets are open, covering both EST and EDT.
+    # GitHub runs scheduled workflows on a best-effort basis, so a run can be
+    # a few minutes late when the platform is busy.
+    - cron: '*/5 13-21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A late run must never overwrite a newer one's prices.
+concurrency:
+  group: prices
+  cancel-in-progress: true
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Fetch quotes
+        run: node scripts/fetch-prices.mjs "$RUNNER_TEMP/prices.json"
+
+      - name: Publish to the data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # The data branch holds one generated file and no history worth
+          # keeping, so each run replaces it outright. That keeps the
+          # repository from growing by a commit every five minutes.
+          work="$RUNNER_TEMP/data"
+          rm -rf "$work"
+          mkdir -p "$work"
+          cd "$work"
+
+          git init -q
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          cp "$RUNNER_TEMP/prices.json" prices.json
+          git add prices.json
+          git commit -q -m "prices: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/data

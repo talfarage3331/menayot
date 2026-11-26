@@ -1,17 +1,17 @@
-import type { CurrencyCode, Holding } from '../types'
+import type { Holding, Quote } from '../types'
 import { statsForHolding } from '../lib/portfolio'
 import { HoldingRow } from './HoldingRow'
 
 type Props = {
   holdings: Holding[]
-  currency: CurrencyCode
+  quotes: Record<string, Quote>
   onEdit: (holding: Holding) => void
 }
 
 /** The positions list, largest holding first. */
-export function HoldingList({ holdings, currency, onEdit }: Props) {
+export function HoldingList({ holdings, quotes, onEdit }: Props) {
   const sorted = [...holdings].sort(
-    (a, b) => statsForHolding(b).value - statsForHolding(a).value,
+    (a, b) => statsForHolding(b, quotes).value - statsForHolding(a, quotes).value,
   )
 
   return (
@@ -22,7 +22,7 @@ export function HoldingList({ holdings, currency, onEdit }: Props) {
           <HoldingRow
             key={holding.id}
             holding={holding}
-            currency={currency}
+            quotes={quotes}
             onEdit={onEdit}
           />
         ))}

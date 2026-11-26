@@ -1,0 +1,18 @@
+{
+  "comment": "US-listed symbols the price feed tracks. Yahoo's batch endpoint takes 20 per request, so the cost is ceil(n/20) requests per run. To follow a symbol that is not here, add it and the next run picks it up.",
+  "symbols": [
+    "AAPL", "MSFT", "NVDA", "GOOGL", "GOOG", "AMZN", "META", "TSLA", "AVGO", "BRK-B",
+    "LLY", "JPM", "V", "XOM", "UNH", "MA", "COST", "HD", "PG", "JNJ",
+    "ABBV", "WMT", "NFLX", "CRM", "BAC", "KO", "AMD", "PEP", "TMO", "LIN",
+    "CSCO", "ADBE", "ACN", "MCD", "ABT", "ORCL", "INTC", "DIS", "WFC", "QCOM",
+    "IBM", "TXN", "GE", "CAT", "NOW", "VZ", "AMGN", "PFE", "DHR", "NEE",
+    "UNP", "PM", "RTX", "SPGI", "HON", "LOW", "COP", "INTU", "BKNG", "AMAT",
+    "GS", "MS", "BLK", "AXP", "ELV", "SYK", "T", "LMT", "BA", "MDT",
+    "PLD", "ADI", "GILD", "MDLZ", "ADP", "CVS", "VRTX", "REGN", "MU", "LRCX",
+    "PANW", "SNOW", "UBER", "ABNB", "SHOP", "XYZ", "PYPL", "COIN", "PLTR", "RBLX",
+    "SOFI", "RIVN", "LCID", "NIO", "F", "GM", "DAL", "AAL", "CCL", "NCLH",
+    "TEVA", "NICE", "CHKP", "MNDY", "WIX", "GLBE", "FVRR", "ESLT", "ICL",
+    "SPY", "QQQ", "VOO", "VTI", "IWM", "DIA", "ARKK", "SMH", "XLE", "XLF",
+    "GLD", "SLV", "TLT", "BITO", "IBIT"
+  ]
+}

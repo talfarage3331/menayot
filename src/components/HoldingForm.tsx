@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { CurrencyCode, Holding, HoldingDraft } from '../types'
-import { CURRENCIES, parseNumber } from '../lib/money'
+import type { Holding, HoldingDraft, Quote } from '../types'
+import { parseNumber, parseOptionalNumber, formatMoney } from '../lib/money'
 
 type Props = {
   /** The holding being edited, or null when adding a new one. */
   holding: Holding | null
-  currency: CurrencyCode
+  quotes: Record<string, Quote>
   onSave: (draft: HoldingDraft) => void
   onDelete: (() => void) | null
   onClose: () => void
@@ -16,10 +16,20 @@ type Fields = {
   name: string
   quantity: string
   buyPrice: string
-  currentPrice: string
+  manualPrice: string
+  alertLow: string
+  alertHigh: string
 }
 
-const BLANK: Fields = { symbol: '', name: '', quantity: '', buyPrice: '', currentPrice: '' }
+const BLANK: Fields = {
+  symbol: '',
+  name: '',
+  quantity: '',
+  buyPrice: '',
+  manualPrice: '',
+  alertLow: '',
+  alertHigh: '',
+}
 
 function fieldsFor(holding: Holding | null): Fields {
   if (!holding) return BLANK
@@ -28,12 +38,14 @@ function fieldsFor(holding: Holding | null): Fields {
     name: holding.name,
     quantity: String(holding.quantity),
     buyPrice: String(holding.buyPrice),
-    currentPrice: String(holding.currentPrice),
+    manualPrice: holding.manualPrice === null ? '' : String(holding.manualPrice),
+    alertLow: holding.alertLow === null ? '' : String(holding.alertLow),
+    alertHigh: holding.alertHigh === null ? '' : String(holding.alertHigh),
   }
 }
 
-/** Bottom sheet for adding or editing a position. */
-export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Props) {
+/** Bottom sheet for adding or editing a position and its price alerts. */
+export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Props) {
   // App gives this component a key per position, so a fresh sheet always
   // mounts fresh and these initializers are the only reset needed.
   const [fields, setFields] = useState<Fields>(() => fieldsFor(holding))
@@ -52,29 +64,38 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
     setFields((current) => ({ ...current, [key]: event.target.value }))
   }
 
+  // Looked up live so the sheet can tell the user whether this symbol is
+  // tracked automatically, and hide the manual price field when it is.
+  const typedSymbol = fields.symbol.trim().toUpperCase()
+  const quote = quotes[typedSymbol]
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
 
-    const symbol = fields.symbol.trim().toUpperCase()
+    const symbol = typedSymbol
     const quantity = parseNumber(fields.quantity)
     const buyPrice = parseNumber(fields.buyPrice)
-    const currentPrice = parseNumber(fields.currentPrice)
+    const manualPrice = parseOptionalNumber(fields.manualPrice)
+    const alertLow = parseOptionalNumber(fields.alertLow)
+    const alertHigh = parseOptionalNumber(fields.alertHigh)
 
     if (!symbol) return setError('צריך להזין סימול, למשל AAPL')
     if (quantity <= 0) return setError('הכמות צריכה להיות גדולה מאפס')
-    if (buyPrice < 0 || currentPrice < 0) return setError('מחיר לא יכול להיות שלילי')
+    if (buyPrice < 0) return setError('מחיר הקנייה לא יכול להיות שלילי')
+    if (alertLow !== null && alertHigh !== null && alertLow >= alertHigh) {
+      return setError('הגבול התחתון צריך להיות נמוך מהגבול העליון')
+    }
 
     onSave({
       symbol,
-      name: fields.name.trim(),
+      name: fields.name.trim() || quote?.name || '',
       quantity,
       buyPrice,
-      // An empty "current price" means the position has not moved yet.
-      currentPrice: fields.currentPrice.trim() === '' ? buyPrice : currentPrice,
+      manualPrice,
+      alertLow,
+      alertHigh,
     })
   }
-
-  const currencySymbol = CURRENCIES[currency].symbol
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
@@ -87,7 +108,7 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md rounded-t-3xl bg-ink-900 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] ring-1 ring-ink-700 sm:rounded-3xl"
+        className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-ink-900 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] ring-1 ring-ink-700 sm:rounded-3xl"
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink-600 sm:hidden" />
 
@@ -96,7 +117,7 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
         </h2>
 
         <div className="flex flex-col gap-3">
-          <Field label="סימול" hint="AAPL, TEVA">
+          <Field label="סימול" hint="AAPL, NVDA, TEVA">
             <input
               dir="ltr"
               autoFocus={!holding}
@@ -107,28 +128,40 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
             />
           </Field>
 
+          {typedSymbol &&
+            (quote ? (
+              <p className="-mt-1 text-xs text-up">
+                במעקב אוטומטי · <span dir="auto">{quote.name}</span> · כעת{' '}
+                <span dir="ltr" className="tabular-nums">{formatMoney(quote.price)}</span>
+              </p>
+            ) : (
+              <p className="-mt-1 text-xs text-slate-500">
+                הסימול הזה לא במעקב האוטומטי — תוכל להזין מחיר ידנית למטה.
+              </p>
+            ))}
+
           <Field label="שם החברה" hint="לא חובה">
             <input
               value={fields.name}
               onChange={set('name')}
-              placeholder="Apple"
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="כמות">
-            <input
-              dir="ltr"
-              inputMode="decimal"
-              value={fields.quantity}
-              onChange={set('quantity')}
-              placeholder="10"
+              placeholder={quote?.name || 'Apple Inc.'}
               className={inputClass}
             />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={`מחיר קנייה (${currencySymbol})`}>
+            <Field label="כמות">
+              <input
+                dir="ltr"
+                inputMode="decimal"
+                value={fields.quantity}
+                onChange={set('quantity')}
+                placeholder="10"
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="מחיר קנייה ($)">
               <input
                 dir="ltr"
                 inputMode="decimal"
@@ -138,18 +171,53 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
                 className={inputClass}
               />
             </Field>
+          </div>
 
-            <Field label={`מחיר נוכחי (${currencySymbol})`}>
+          {!quote && (
+            <Field label="מחיר נוכחי ($)" hint="כי הסימול לא במעקב">
               <input
                 dir="ltr"
                 inputMode="decimal"
-                value={fields.currentPrice}
-                onChange={set('currentPrice')}
+                value={fields.manualPrice}
+                onChange={set('manualPrice')}
                 placeholder="175"
                 className={inputClass}
               />
             </Field>
-          </div>
+          )}
+
+          <fieldset className="mt-1 rounded-xl border border-ink-700 p-3">
+            <legend className="px-1.5 text-sm font-semibold text-slate-300">
+              התראות מחיר
+            </legend>
+            <p className="mb-3 text-xs leading-relaxed text-slate-500">
+              נודיע לך ברגע שהמחיר יחצה אחד מהגבולות. אפשר למלא רק אחד מהם.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="גבול תחתון ($)">
+                <input
+                  dir="ltr"
+                  inputMode="decimal"
+                  value={fields.alertLow}
+                  onChange={set('alertLow')}
+                  placeholder="140"
+                  className={inputClass}
+                />
+              </Field>
+
+              <Field label="גבול עליון ($)">
+                <input
+                  dir="ltr"
+                  inputMode="decimal"
+                  value={fields.alertHigh}
+                  onChange={set('alertHigh')}
+                  placeholder="200"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+          </fieldset>
         </div>
 
         {error && (
@@ -166,10 +234,7 @@ export function HoldingForm({ holding, currency, onSave, onDelete, onClose }: Pr
           >
             ביטול
           </button>
-          <button
-            type="submit"
-            className="h-12 flex-[2] rounded-xl bg-up font-bold text-ink-950"
-          >
+          <button type="submit" className="h-12 flex-[2] rounded-xl bg-up font-bold text-ink-950">
             שמירה
           </button>
         </div>
@@ -204,7 +269,12 @@ function Field({
     <label className="block">
       <span className="mb-1.5 block text-sm text-slate-400">
         {label}
-        {hint && <span className="text-slate-600"> · {hint}</span>}
+        {hint && (
+          <span dir="auto" className="text-slate-600">
+            {' · '}
+            {hint}
+          </span>
+        )}
       </span>
       {children}
     </label>
