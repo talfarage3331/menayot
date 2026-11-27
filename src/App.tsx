@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Holding, HoldingDraft } from './types'
 import { usePortfolio } from './hooks/usePortfolio'
 import { useQuotes } from './hooks/useQuotes'
+import { useEarnings } from './hooks/useEarnings'
 import { useAlerts } from './hooks/useAlerts'
 import { statsForPortfolio } from './lib/portfolio'
 import { Header } from './components/Header'
 import { SummaryCard } from './components/SummaryCard'
 import { HoldingList } from './components/HoldingList'
+import { UpcomingEarnings } from './components/UpcomingEarnings'
 import { Allocation } from './components/Allocation'
+import { HoldingDetail } from './components/HoldingDetail'
 import { HoldingForm } from './components/HoldingForm'
 import { EmptyState } from './components/EmptyState'
 import { InstallHint } from './components/InstallHint'
@@ -15,19 +18,32 @@ import { NotificationSetup } from './components/NotificationSetup'
 import { AlertBanner } from './components/AlertBanner'
 import { BackupPanel } from './components/BackupPanel'
 
-/** Which position the edit sheet is open for: none, a new one, or an existing one. */
-type SheetState = { kind: 'closed' } | { kind: 'new' } | { kind: 'edit'; holding: Holding }
+/**
+ * What is open on top of the list: nothing, the detail view for a position,
+ * the form for a new one, or the form editing an existing one.
+ */
+type Sheet =
+  | { kind: 'closed' }
+  | { kind: 'detail'; holding: Holding }
+  | { kind: 'new' }
+  | { kind: 'edit'; holding: Holding }
 
 export default function App() {
   const portfolio = usePortfolio()
   const feed = useQuotes()
+  const { earnings } = useEarnings()
   const alerts = useAlerts(portfolio.holdings, feed.quotes)
-  const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
+  const [sheet, setSheet] = useState<Sheet>({ kind: 'closed' })
 
   const stats = useMemo(
     () => statsForPortfolio(portfolio.holdings, feed.quotes),
     [portfolio.holdings, feed.quotes],
   )
+
+  // Watch-only entries own nothing, so they are listed apart from the
+  // portfolio and left out of its totals.
+  const owned = portfolio.holdings.filter((holding) => holding.quantity > 0)
+  const watched = portfolio.holdings.filter((holding) => holding.quantity === 0)
 
   // Once quotes arrive they carry company names, so positions added as a bare
   // ticker fill themselves in.
@@ -55,7 +71,8 @@ export default function App() {
     setSheet({ kind: 'closed' })
   }
 
-  const hasHoldings = portfolio.holdings.length > 0
+  const hasAnything = portfolio.holdings.length > 0
+  const openDetail = (holding: Holding) => setSheet({ kind: 'detail', holding })
 
   return (
     <div className="min-h-dvh bg-ink-950">
@@ -70,15 +87,36 @@ export default function App() {
         <main className="flex flex-col gap-6">
           <AlertBanner breaches={alerts.recent} onDismiss={alerts.dismiss} />
 
-          {hasHoldings ? (
+          {hasAnything ? (
             <>
-              <SummaryCard stats={stats} holdingCount={portfolio.holdings.length} />
+              {owned.length > 0 && (
+                <SummaryCard stats={stats} holdingCount={owned.length} />
+              )}
+
               <HoldingList
-                holdings={portfolio.holdings}
+                title="האחזקות שלי"
+                holdings={owned}
                 quotes={feed.quotes}
-                onEdit={(holding) => setSheet({ kind: 'edit', holding })}
+                earnings={earnings}
+                onSelect={openDetail}
               />
-              <Allocation stats={stats} />
+
+              <HoldingList
+                title="במעקב"
+                holdings={watched}
+                quotes={feed.quotes}
+                earnings={earnings}
+                onSelect={openDetail}
+              />
+
+              <UpcomingEarnings
+                holdings={portfolio.holdings}
+                earnings={earnings}
+                onSelect={openDetail}
+              />
+
+              {owned.length > 0 && <Allocation stats={stats} />}
+
               <NotificationSetup />
               <BackupPanel
                 holdings={portfolio.holdings}
@@ -93,18 +131,29 @@ export default function App() {
         </main>
       </div>
 
-      {hasHoldings && (
+      {hasAnything && (
         <button
           type="button"
           onClick={() => setSheet({ kind: 'new' })}
-          aria-label="הוספת אחזקה"
+          aria-label="הוספת מניה"
           className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] end-4 h-14 w-14 rounded-full bg-up text-3xl font-light text-ink-950 shadow-lg shadow-black/50"
         >
           +
         </button>
       )}
 
-      {sheet.kind !== 'closed' && (
+      {sheet.kind === 'detail' && (
+        <HoldingDetail
+          key={sheet.holding.id}
+          holding={sheet.holding}
+          quotes={feed.quotes}
+          earnings={earnings[sheet.holding.symbol]}
+          onEdit={() => setSheet({ kind: 'edit', holding: sheet.holding })}
+          onClose={() => setSheet({ kind: 'closed' })}
+        />
+      )}
+
+      {(sheet.kind === 'new' || sheet.kind === 'edit') && (
         <HoldingForm
           key={sheet.kind === 'edit' ? sheet.holding.id : 'new'}
           holding={sheet.kind === 'edit' ? sheet.holding : null}

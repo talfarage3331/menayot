@@ -7,8 +7,10 @@ can make a change correctly on the first try.
 ## What this is
 
 A Hebrew, right-to-left, mobile-first **PWA** for tracking a personal portfolio
-of US-listed stocks. Prices update by themselves, and each holding can carry an
-upper and a lower price alert.
+of US-listed stocks. Prices update by themselves, each holding can carry an
+upper and a lower price alert, and the app shows when each company next
+reports earnings. A holding with **zero quantity is a watch-only entry**: it
+gets alerts and statistics but is kept out of the portfolio totals.
 
 **Live URL:** https://talfarage3331.github.io/menayot/
 
@@ -54,6 +56,27 @@ The way round that, without any paid service or extra account:
    it each run so the repository does not grow by a commit every 5 minutes.
 4. The app reads it from `raw.githubusercontent.com`, which *does* send
    `access-control-allow-origin: *`.
+
+### The earnings calendar
+
+`.github/workflows/earnings.yml` runs once a day, walks the next 45 weekdays of
+Nasdaq's keyless earnings calendar, keeps the first appearance of each tracked
+symbol, and publishes `earnings.json` to the same `data` branch.
+
+Two things about that source, both learned the hard way:
+
+- **It drops Node's HTTP client.** Every `fetch` dies with "other side closed"
+  after 30 seconds while curl gets a 200 in about two, so the script shells out
+  to curl with `--http1.1` (its HTTP/2 streams abort with INTERNAL_ERROR). Do
+  not "simplify" this back to `fetch`.
+- **It throttles.** Requests fired back to back start timing out within
+  minutes, which is why there is a delay between days. Expect local runs from a
+  container that has already been probing it to fail; CI runs once a day from a
+  clean address and is fine.
+
+Both workflows write the same `data` branch, so **each one fetches the branch
+first and puts the other's file back** before force-pushing. Breaking that
+would mean the 10-minute price run silently deletes the earnings file.
 
 **To track a new symbol, add it to `scripts/universe.json`.** Nothing else.
 A holding whose symbol is not in the universe falls back to a hand-typed
@@ -114,21 +137,24 @@ locally.
 
 ```
 scripts/
-  universe.json         Symbols the price feed tracks
-  fetch-prices.mjs      Runs on CI, writes prices.json
+  universe.json         Symbols both feeds track
+  fetch-prices.mjs      Runs on CI every 10 minutes, writes prices.json
+  fetch-earnings.mjs    Runs on CI daily, writes earnings.json
 src/
   types.ts              Shared data shapes
   lib/
     money.ts            Formatting and input parsing
     portfolio.ts        Value, profit/loss, day change, allocation  (pure)
     alerts.ts           Threshold crossing detection                (pure)
-    quotes.ts           Fetching the feed, resolving a holding's price
+    quotes.ts           Fetching the price feed, resolving a holding's price
+    earnings.ts         Fetching the earnings feed; date, cap and volume text
     storage.ts          localStorage, validation, v1→v2 migration
     notify.ts           Notification permission and display
     backup.ts           Export and restore the portfolio as a JSON file
   hooks/
     usePortfolio.ts     Owns holdings and every action on them
-    useQuotes.ts        Keeps the feed current (timer + on refocus)
+    useQuotes.ts        Keeps the price feed current (timer + on refocus)
+    useEarnings.ts      Loads the earnings calendar (on mount + on refocus)
     useAlerts.ts        Runs detection and raises notifications
   components/           One component per file, presentational
   App.tsx               Composition and the edit sheet's open state
@@ -196,11 +222,22 @@ await page.screenshot({ path: 'check.png' })
 
 Look at the screenshot. RTL problems are visual and raise no errors.
 
+Do not try to validate bidi by comparing a rendered string against the source
+string: Hebrew letters paint right to left, so every mixed string looks
+"wrong" and the check is useless. What actually breaks is a **numeric run
+coming apart** — the currency symbol detaching from its digits, a minus sign
+drifting across. Measure each run of digits and its attached neutrals with
+`Range.getBoundingClientRect()` and assert it paints contiguously in written
+order.
+
 Note: this container's Node needs `NODE_USE_ENV_PROXY=1` to reach the quote
 provider; CI does not.
 
 ## Known gaps, in rough priority order
 
+0. **Verify the earnings feed on CI.** At the time of writing the workflow had
+   not yet produced an `earnings.json`; the local runs were throttled. Check a
+   run's log and the `data` branch before trusting the calendar.
 1. **Push when the app is closed.** The headline missing feature, and the only
    one that cannot be built here. It needs a server: somewhere to store push
    subscriptions and VAPID keys, plus a job that checks prices and posts to the
@@ -211,6 +248,6 @@ provider; CI does not.
    minute, free KV or D1, no credit card). Costs the owner one free account.
 2. **Price history and a chart** of portfolio value over time. Would need the
    price Action to append to a history file rather than replace it.
-3. **A watchlist** — alerts on symbols the user does not own.
-4. **Dividends and fees** in the profit calculation.
-5. **A way to request a symbol** without editing `universe.json`.
+3. **Dividends and fees** in the profit calculation.
+4. **A way to request a symbol** without editing `universe.json`.
+5. **Earnings beyond 45 days**, and past results rather than only the next one.

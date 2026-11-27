@@ -1,4 +1,4 @@
-import type { PortfolioStats } from '../lib/portfolio'
+import type { PortfolioStats, Standout } from '../lib/portfolio'
 import { formatMoney, formatSignedMoney, formatSignedPercent } from '../lib/money'
 
 type Props = {
@@ -47,7 +47,31 @@ export function SummaryCard({ stats, holdingCount }: Props) {
           <span className="tabular-nums">{holdingCount}</span>
         </Stat>
       </dl>
+
+      {stats.best && stats.worst && (
+        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-ink-700 pt-4 text-sm">
+          <Standing label="המניה המובילה" standout={stats.best} />
+          <Standing label="הכי חלשה" standout={stats.worst} />
+        </dl>
+      )}
     </section>
+  )
+}
+
+/** Names a holding and its return, for the best and worst of the portfolio. */
+function Standing({ label, standout }: { label: string; standout: Standout }) {
+  return (
+    <div>
+      <dt className="text-slate-400">{label}</dt>
+      <dd className="mt-0.5 flex items-baseline gap-2">
+        <span dir="ltr" className="font-bold text-slate-100">
+          {standout.holding.symbol}
+        </span>
+        <span dir="ltr" className={`text-xs font-semibold tabular-nums ${tone(standout.profitRatio)}`}>
+          {formatSignedPercent(standout.profitRatio)}
+        </span>
+      </dd>
+    </div>
   )
 }
 

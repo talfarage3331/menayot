@@ -11,6 +11,9 @@ type Props = {
   onClose: () => void
 }
 
+/** Owning the stock, or only watching it for alerts. */
+type Mode = 'own' | 'watch'
+
 type Fields = {
   symbol: string
   name: string
@@ -36,8 +39,8 @@ function fieldsFor(holding: Holding | null): Fields {
   return {
     symbol: holding.symbol,
     name: holding.name,
-    quantity: String(holding.quantity),
-    buyPrice: String(holding.buyPrice),
+    quantity: holding.quantity === 0 ? '' : String(holding.quantity),
+    buyPrice: holding.buyPrice === 0 ? '' : String(holding.buyPrice),
     manualPrice: holding.manualPrice === null ? '' : String(holding.manualPrice),
     alertLow: holding.alertLow === null ? '' : String(holding.alertLow),
     alertHigh: holding.alertHigh === null ? '' : String(holding.alertHigh),
@@ -49,6 +52,9 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
   // App gives this component a key per position, so a fresh sheet always
   // mounts fresh and these initializers are the only reset needed.
   const [fields, setFields] = useState<Fields>(() => fieldsFor(holding))
+  const [mode, setMode] = useState<Mode>(() =>
+    holding && holding.quantity === 0 ? 'watch' : 'own',
+  )
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -73,17 +79,22 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
     event.preventDefault()
 
     const symbol = typedSymbol
-    const quantity = parseNumber(fields.quantity)
-    const buyPrice = parseNumber(fields.buyPrice)
+    const quantity = mode === 'watch' ? 0 : parseNumber(fields.quantity)
+    const buyPrice = mode === 'watch' ? 0 : parseNumber(fields.buyPrice)
     const manualPrice = parseOptionalNumber(fields.manualPrice)
     const alertLow = parseOptionalNumber(fields.alertLow)
     const alertHigh = parseOptionalNumber(fields.alertHigh)
 
     if (!symbol) return setError('צריך להזין סימול, למשל AAPL')
-    if (quantity <= 0) return setError('הכמות צריכה להיות גדולה מאפס')
+    if (mode === 'own' && quantity <= 0) {
+      return setError('הכמות צריכה להיות גדולה מאפס, או שתעבור למעקב בלבד')
+    }
     if (buyPrice < 0) return setError('מחיר הקנייה לא יכול להיות שלילי')
     if (alertLow !== null && alertHigh !== null && alertLow >= alertHigh) {
       return setError('הגבול התחתון צריך להיות נמוך מהגבול העליון')
+    }
+    if (mode === 'watch' && alertLow === null && alertHigh === null && !quote) {
+      return setError('למעקב בלבד כדאי להגדיר לפחות גבול אחד, אחרת אין מה להתריע')
     }
 
     onSave({
@@ -113,8 +124,27 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink-600 sm:hidden" />
 
         <h2 className="mb-4 text-lg font-bold text-slate-100">
-          {holding ? 'עריכת אחזקה' : 'הוספת אחזקה'}
+          {holding ? 'עריכת מניה' : 'הוספת מניה'}
         </h2>
+
+        <div
+          role="group"
+          aria-label="סוג הרשומה"
+          className="mb-4 flex rounded-xl bg-ink-800 p-1 ring-1 ring-ink-700"
+        >
+          <ModeButton
+            active={mode === 'own'}
+            onClick={() => setMode('own')}
+            label="אחזקה"
+            hint="קניתי אותה"
+          />
+          <ModeButton
+            active={mode === 'watch'}
+            onClick={() => setMode('watch')}
+            label="מעקב בלבד"
+            hint="רק התראות"
+          />
+        </div>
 
         <div className="flex flex-col gap-3">
           <Field label="סימול" hint="AAPL, NVDA, TEVA">
@@ -132,7 +162,9 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
             (quote ? (
               <p className="-mt-1 text-xs text-up">
                 במעקב אוטומטי · <span dir="auto">{quote.name}</span> · כעת{' '}
-                <span dir="ltr" className="tabular-nums">{formatMoney(quote.price)}</span>
+                <span dir="ltr" className="tabular-nums">
+                  {formatMoney(quote.price)}
+                </span>
               </p>
             ) : (
               <p className="-mt-1 text-xs text-slate-500">
@@ -149,29 +181,31 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="כמות">
-              <input
-                dir="ltr"
-                inputMode="decimal"
-                value={fields.quantity}
-                onChange={set('quantity')}
-                placeholder="10"
-                className={inputClass}
-              />
-            </Field>
+          {mode === 'own' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="כמות">
+                <input
+                  dir="ltr"
+                  inputMode="decimal"
+                  value={fields.quantity}
+                  onChange={set('quantity')}
+                  placeholder="10"
+                  className={inputClass}
+                />
+              </Field>
 
-            <Field label="מחיר קנייה ($)">
-              <input
-                dir="ltr"
-                inputMode="decimal"
-                value={fields.buyPrice}
-                onChange={set('buyPrice')}
-                placeholder="150"
-                className={inputClass}
-              />
-            </Field>
-          </div>
+              <Field label="מחיר קנייה ($)">
+                <input
+                  dir="ltr"
+                  inputMode="decimal"
+                  value={fields.buyPrice}
+                  onChange={set('buyPrice')}
+                  placeholder="150"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+          )}
 
           {!quote && (
             <Field label="מחיר נוכחי ($)" hint="כי הסימול לא במעקב">
@@ -245,7 +279,7 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
             onClick={() => (confirmingDelete ? onDelete() : setConfirmingDelete(true))}
             className="mt-3 h-11 w-full rounded-xl text-sm font-semibold text-down hover:bg-down/10"
           >
-            {confirmingDelete ? 'בטוח? לחיצה נוספת תמחק' : 'מחיקת האחזקה'}
+            {confirmingDelete ? 'בטוח? לחיצה נוספת תמחק' : 'מחיקת המניה'}
           </button>
         )}
       </form>
@@ -255,6 +289,32 @@ export function HoldingForm({ holding, quotes, onSave, onDelete, onClose }: Prop
 
 const inputClass =
   'h-12 w-full rounded-xl bg-ink-800 px-3.5 text-base text-slate-100 ring-1 ring-ink-700 outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-up'
+
+function ModeButton({
+  active,
+  onClick,
+  label,
+  hint,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  hint: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex-1 rounded-lg py-2 transition-colors ${
+        active ? 'bg-ink-600 text-slate-50' : 'text-slate-400'
+      }`}
+    >
+      <span className="block text-sm font-semibold">{label}</span>
+      <span className="block text-xs opacity-70">{hint}</span>
+    </button>
+  )
+}
 
 function Field({
   label,

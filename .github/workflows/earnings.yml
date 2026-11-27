@@ -1,0 +1,61 @@
+name: Update earnings calendar
+
+on:
+  schedule:
+    # Once a day, well before the US open. Earnings dates are announced weeks
+    # ahead and barely move, so a daily pass is plenty — and the calendar is a
+    # courtesy source with no API key, which rules out hammering it.
+    - cron: '17 9 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: earnings
+  cancel-in-progress: false
+
+jobs:
+  earnings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Fetch the earnings calendar
+        run: node scripts/fetch-earnings.mjs "$RUNNER_TEMP/earnings.json" 45
+
+      - name: Publish to the data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # The data branch carries the generated feeds and no history worth
+          # keeping, so each run rewrites it. prices.json is fetched from the
+          # branch first and put back, because the price workflow writes the
+          # same branch far more often and must not lose its file here.
+          work="$RUNNER_TEMP/data"
+          rm -rf "$work"
+          mkdir -p "$work"
+          cd "$work"
+
+          git init -q
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Keep whatever the branch already holds, then replace only earnings.
+          if git fetch -q --depth 1 "$remote" data 2>/dev/null; then
+            git checkout -q FETCH_HEAD -- . || true
+          fi
+
+          cp "$RUNNER_TEMP/earnings.json" earnings.json
+          git add -A
+          git commit -q -m "earnings: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          git push -q --force "$remote" HEAD:refs/heads/data

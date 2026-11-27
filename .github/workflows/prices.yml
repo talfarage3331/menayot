@@ -41,9 +41,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The data branch holds one generated file and no history worth
-          # keeping, so each run replaces it outright. That keeps the
-          # repository from growing by a commit every five minutes.
+          # The data branch carries the generated feeds and no history worth
+          # keeping, so each run rewrites it rather than adding a commit every
+          # ten minutes. Its current contents are fetched first and put back,
+          # so this does not wipe earnings.json, which a separate daily
+          # workflow writes to the same branch.
           work="$RUNNER_TEMP/data"
           rm -rf "$work"
           mkdir -p "$work"
@@ -53,10 +55,14 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git fetch -q --depth 1 "$remote" data 2>/dev/null; then
+            git checkout -q FETCH_HEAD -- . || true
+          fi
+
           cp "$RUNNER_TEMP/prices.json" prices.json
-          git add prices.json
+          git add -A
           git commit -q -m "prices: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          git push -q --force \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            HEAD:refs/heads/data
+          git push -q --force "$remote" HEAD:refs/heads/data

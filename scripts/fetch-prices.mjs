@@ -75,13 +75,21 @@ async function fetchBatch(symbols) {
     const meta = entry?.response?.[0]?.meta
     if (!meta?.symbol || typeof meta.regularMarketPrice !== 'number') continue
 
+    // Everything below the price already rides along in the same response,
+    // so carrying it through costs no extra requests.
     quotes[meta.symbol] = {
       price: round(meta.regularMarketPrice),
       previousClose: round(meta.chartPreviousClose),
       currency: meta.currency ?? 'USD',
       name: meta.shortName ?? meta.longName ?? '',
-      // Seconds since the epoch, as Yahoo reports it.
+      // Seconds since the epoch, as the provider reports it.
       at: meta.regularMarketTime ?? null,
+      dayHigh: round(meta.regularMarketDayHigh),
+      dayLow: round(meta.regularMarketDayLow),
+      yearHigh: round(meta.fiftyTwoWeekHigh),
+      yearLow: round(meta.fiftyTwoWeekLow),
+      volume: Number.isFinite(meta.regularMarketVolume) ? meta.regularMarketVolume : null,
+      exchange: meta.fullExchangeName ?? null,
     }
   }
   return quotes

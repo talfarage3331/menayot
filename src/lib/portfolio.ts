@@ -15,6 +15,9 @@ export type HoldingStats = {
   profitRatio: number
 }
 
+/** A holding singled out by how it has performed. */
+export type Standout = { holding: Holding; profitRatio: number }
+
 export type PortfolioStats = {
   cost: number
   value: number
@@ -25,6 +28,9 @@ export type PortfolioStats = {
   dayChangeRatio: number
   /** Holdings sorted by value, largest first, each with its share of the total. */
   allocation: Array<{ holding: Holding; value: number; share: number }>
+  /** Strongest and weakest position by return. Null with fewer than two. */
+  best: Standout | null
+  worst: Standout | null
 }
 
 export function statsForHolding(
@@ -78,6 +84,16 @@ export function statsForPortfolio(
     })
     .sort((a, b) => b.value - a.value)
 
+  // Watch-only entries own nothing, so their return is meaningless here, and
+  // a single position is not a ranking worth showing.
+  const ranked = holdings
+    .filter((holding) => holding.quantity > 0 && holding.buyPrice > 0)
+    .map((holding) => ({
+      holding,
+      profitRatio: statsForHolding(holding, quotes).profitRatio,
+    }))
+    .sort((a, b) => b.profitRatio - a.profitRatio)
+
   return {
     cost,
     value,
@@ -86,5 +102,7 @@ export function statsForPortfolio(
     dayChange,
     dayChangeRatio: previousValue === 0 ? 0 : dayChange / previousValue,
     allocation,
+    best: ranked.length >= 2 ? ranked[0] : null,
+    worst: ranked.length >= 2 ? ranked[ranked.length - 1] : null,
   }
 }
