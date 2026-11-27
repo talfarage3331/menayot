@@ -57,22 +57,41 @@ The way round that, without any paid service or extra account:
 4. The app reads it from `raw.githubusercontent.com`, which *does* send
    `access-control-allow-origin: *`.
 
-### The earnings calendar
+### The earnings calendar — built, wired, and NOT currently fed
 
-`.github/workflows/earnings.yml` runs once a day, walks the next 45 weekdays of
-Nasdaq's keyless earnings calendar, keeps the first appearance of each tracked
-symbol, and publishes `earnings.json` to the same `data` branch.
+The app reads an `earnings.json` from the `data` branch and shows the next
+report date, its EPS forecast and market cap. All of that works. **No such
+file is being produced**, so the earnings parts of the UI simply do not appear.
+This is the honest state of things; do not describe the feature as working.
 
-Two things about that source, both learned the hard way:
+`scripts/fetch-earnings.mjs` and `.github/workflows/earnings.yml` exist and are
+correct, pointed at Nasdaq's keyless calendar. Its schedule is switched off
+because that source **refuses datacenter addresses**: a GitHub runner fetched
+0 of the days it asked for, exactly as the development container did. This was
+confirmed from a CI log, not guessed.
 
-- **It drops Node's HTTP client.** Every `fetch` dies with "other side closed"
-  after 30 seconds while curl gets a 200 in about two, so the script shells out
-  to curl with `--http1.1` (its HTTP/2 streams abort with INTERNAL_ERROR). Do
-  not "simplify" this back to `fetch`.
-- **It throttles.** Requests fired back to back start timing out within
-  minutes, which is why there is a delay between days. Expect local runs from a
-  container that has already been probing it to fail; CI runs once a day from a
-  clean address and is fine.
+What was tried, so it is not tried again:
+
+- **Nasdaq's calendar** — keyless and perfect in shape (date, pre/post market,
+  EPS forecast, market cap), but blocked from any cloud address. A browser or a
+  home connection gets a 200 in two seconds.
+- **The quote provider's own fundamentals endpoint** — answers 401 without a
+  session token. Obtaining that token means working around an access control,
+  so it was not pursued.
+- **Node's `fetch` against Nasdaq** — dies with "other side closed" after 30
+  seconds where curl gets a 200 in two, which is why the script shells out to
+  curl with `--http1.1` (its HTTP/2 streams abort with INTERNAL_ERROR). Keep
+  that if the script is ever revived.
+
+Two routes remain, and the owner has to pick:
+
+1. **A free API key** (Finnhub or similar — free tier, no card) gives real
+   announced dates. Point `fetch-earnings.mjs` at it, hold the key in a
+   repository secret, re-enable the cron.
+2. **SEC EDGAR** is official, explicitly welcomes automated clients and needs
+   no key, but publishes *past* filings. The next report can only be estimated
+   from the filing cadence, and the UI would have to say "expected", not
+   promise a date.
 
 Both workflows write the same `data` branch, so **each one fetches the branch
 first and puts the other's file back** before force-pushing. Breaking that
@@ -235,9 +254,9 @@ provider; CI does not.
 
 ## Known gaps, in rough priority order
 
-0. **Verify the earnings feed on CI.** At the time of writing the workflow had
-   not yet produced an `earnings.json`; the local runs were throttled. Check a
-   run's log and the `data` branch before trusting the calendar.
+0. **Feed the earnings calendar.** The UI is built and waiting; nothing
+   produces the file. See "The earnings calendar" above for what was tried and
+   the two routes left.
 1. **Push when the app is closed.** The headline missing feature, and the only
    one that cannot be built here. It needs a server: somewhere to store push
    subscriptions and VAPID keys, plus a job that checks prices and posts to the

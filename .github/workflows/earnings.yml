@@ -1,11 +1,15 @@
 name: Update earnings calendar
 
+# The schedule is deliberately switched off. The calendar source refuses
+# requests from datacenter addresses: a run from a GitHub runner fetched 0 of
+# the days it asked for, and so did every run from the development container.
+# Leaving a daily cron in place would just fail every morning and bury real
+# failures in noise.
+#
+# Re-enable it only once the fetch succeeds from CI — either because the
+# source starts answering, or because the script is pointed at a provider that
+# serves servers. Run it by hand with a small `days` value to check.
 on:
-  schedule:
-    # Once a day, well before the US open. Earnings dates are announced weeks
-    # ahead and barely move, so a daily pass is plenty — and the calendar is a
-    # courtesy source with no API key, which rules out hammering it.
-    - cron: '17 9 * * 1-5'
   workflow_dispatch:
     inputs:
       days:
