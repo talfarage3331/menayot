@@ -7,6 +7,11 @@ on:
     # courtesy source with no API key, which rules out hammering it.
     - cron: '17 9 * * 1-5'
   workflow_dispatch:
+    inputs:
+      days:
+        description: 'How many days of calendar to walk (small values are for probing the source)'
+        required: false
+        default: '45'
 
 permissions:
   contents: write
@@ -25,8 +30,14 @@ jobs:
         with:
           node-version: 22
 
+      # Capped well under the job limit: if the source starts refusing
+      # requests, each day burns its retries and the run would otherwise sit
+      # there for half an hour before failing.
       - name: Fetch the earnings calendar
-        run: node scripts/fetch-earnings.mjs "$RUNNER_TEMP/earnings.json" 45
+        timeout-minutes: 12
+        run: |
+          node scripts/fetch-earnings.mjs "$RUNNER_TEMP/earnings.json" \
+            "${{ inputs.days || '45' }}"
 
       - name: Publish to the data branch
         env:
