@@ -3,11 +3,10 @@ import { formatMoney, formatSignedMoney, formatSignedPercent } from '../lib/mone
 
 type Props = {
   stats: PortfolioStats
-  holdingCount: number
 }
 
 /** The headline numbers: what the portfolio is worth and how it is doing. */
-export function SummaryCard({ stats, holdingCount }: Props) {
+export function SummaryCard({ stats }: Props) {
   const isUp = stats.profit > 0
   const isDown = stats.profit < 0
 
@@ -17,7 +16,7 @@ export function SummaryCard({ stats, holdingCount }: Props) {
 
       <p
         dir="ltr"
-        className="mt-1 text-right text-4xl font-bold tracking-tight text-slate-50 tabular-nums"
+        className="mt-1 text-right text-3xl font-bold tracking-tight text-slate-50 tabular-nums min-[380px]:text-4xl"
       >
         {formatMoney(stats.value)}
       </p>
@@ -32,19 +31,20 @@ export function SummaryCard({ stats, holdingCount }: Props) {
         </span>
       </div>
 
-      <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-ink-700 pt-4 text-sm">
-        <Stat label="עלות">
+      {/*
+        Two columns, not three: a six-figure portfolio value overflows a third
+        of a 320px screen and collides with its neighbour. The number of
+        holdings moved to the list heading, where it costs no room at all.
+      */}
+      <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-ink-700 pt-4 text-sm">
+        <Stat label="עלות הרכישה">
           <span dir="ltr" className="tabular-nums">{formatMoney(stats.cost)}</span>
         </Stat>
 
-        <Stat label="היום">
+        <Stat label="השינוי היום">
           <span dir="ltr" className={`tabular-nums ${tone(stats.dayChange)}`}>
             {formatSignedMoney(stats.dayChange)}
           </span>
-        </Stat>
-
-        <Stat label="אחזקות">
-          <span className="tabular-nums">{holdingCount}</span>
         </Stat>
       </dl>
 

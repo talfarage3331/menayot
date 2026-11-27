@@ -19,6 +19,11 @@ export function EmptyState({ onAdd }: Props) {
       >
         הוספת מניה ראשונה
       </button>
+
+      <p className="mx-auto mt-5 max-w-xs text-xs leading-relaxed text-slate-500">
+        התיק נשמר במכשיר שלך בלבד ולא נשלח לשום מקום. אפשר לעקוב גם אחרי מניה
+        שאתה לא מחזיק, רק בשביל ההתראות.
+      </p>
     </section>
   )
 }

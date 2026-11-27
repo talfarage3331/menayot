@@ -76,7 +76,10 @@ export function HoldingDetail({ holding, quotes, earnings, onEdit, onClose }: Pr
               {holding.name || 'ללא שם'}
             </p>
             {dayChange !== null && (
-              <p dir="ltr" className={`text-sm font-semibold tabular-nums ${tone(dayChange)}`}>
+              <p
+                dir="ltr"
+                className={`shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums ${tone(dayChange)}`}
+              >
                 {formatSignedPercent(dayChange)} היום
               </p>
             )}

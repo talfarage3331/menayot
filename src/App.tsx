@@ -89,12 +89,11 @@ export default function App() {
 
           {hasAnything ? (
             <>
-              {owned.length > 0 && (
-                <SummaryCard stats={stats} holdingCount={owned.length} />
-              )}
+              {owned.length > 0 && <SummaryCard stats={stats} />}
 
               <HoldingList
                 title="האחזקות שלי"
+                showCount
                 holdings={owned}
                 quotes={feed.quotes}
                 earnings={earnings}
@@ -103,6 +102,7 @@ export default function App() {
 
               <HoldingList
                 title="במעקב"
+                showCount
                 holdings={watched}
                 quotes={feed.quotes}
                 earnings={earnings}
