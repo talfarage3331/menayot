@@ -1,6 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Holding } from '../types'
 import { describeBackup, downloadBackup, parseBackup } from '../lib/backup'
+import {
+  backupIsOverdue,
+  markBackedUp,
+  requestPersistence,
+  storageStatus,
+} from '../lib/persistence'
 
 type Props = {
   holdings: Holding[]
@@ -18,9 +24,32 @@ export function BackupPanel({ holdings, onRestore }: Props) {
   const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [persisted, setPersisted] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let alive = true
+
+    // Ask the browser to stop evicting this site's data under storage
+    // pressure. Granted silently for installed web apps; refused elsewhere,
+    // which is worth telling the user about rather than hiding.
+    void (async () => {
+      const granted = await requestPersistence()
+      const status = await storageStatus()
+      if (alive) setPersisted(status.supported ? granted || status.persisted : null)
+    })()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // Derived, not stored: `markBackedUp` writes the timestamp this reads, and
+  // every path that calls it also re-renders, so the nudge clears by itself.
+  const overdue = backupIsOverdue(holdings.length)
 
   const handleExport = () => {
     downloadBackup(holdings)
+    markBackedUp()
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -48,6 +77,19 @@ export function BackupPanel({ holdings, onRestore }: Props) {
         התיק נשמר רק בדפדפן הזה. ניקוי היסטוריית הגלישה ימחק אותו. שמירה לקובץ
         היא הדרך היחידה לשחזר אותו אחר כך, או להעביר אותו למכשיר אחר.
       </p>
+
+      {persisted === false && (
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          הדפדפן לא התחייב לשמור את הנתונים אם ייגמר מקום במכשיר. הוספה למסך
+          הבית בדרך כלל פותרת את זה. בכל מקרה, כדאי להחזיק קובץ גיבוי.
+        </p>
+      )}
+
+      {overdue && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200">
+          עוד לא שמרת קובץ גיבוי. אם תנקה את הדפדפן או תחליף מכשיר, התיק יאבד.
+        </p>
+      )}
 
       <div className="mt-3 flex gap-2.5">
         <button
@@ -99,6 +141,7 @@ export function BackupPanel({ holdings, onRestore }: Props) {
               type="button"
               onClick={() => {
                 onRestore(pending.holdings)
+                markBackedUp()
                 setPending(null)
               }}
               className="h-10 flex-1 rounded-lg bg-amber-500 text-sm font-bold text-ink-950"

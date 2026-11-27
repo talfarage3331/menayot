@@ -11,8 +11,16 @@ export function useEarnings() {
   const [earnings, setEarnings] = useState<Record<string, EarningsEntry>>({})
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const mounted = useRef(true)
+  /**
+   * No calendar is published yet, so the first fetch 404s. Without this the
+   * app would retry on every refocus and every user would collect a failed
+   * request each time. One attempt per page load is enough: the moment a feed
+   * does appear, the next load picks it up with no code change.
+   */
+  const giveUp = useRef(false)
 
   const refresh = useCallback(async () => {
+    if (giveUp.current) return
     try {
       const feed = await fetchEarningsFeed()
       if (!mounted.current) return
@@ -21,6 +29,7 @@ export function useEarnings() {
     } catch {
       // The calendar is a nice-to-have; its absence must not break the app,
       // and whatever was already loaded stays on screen.
+      giveUp.current = true
     }
   }, [])
 

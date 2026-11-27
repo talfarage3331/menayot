@@ -78,20 +78,24 @@ What was tried, so it is not tried again:
 - **The quote provider's own fundamentals endpoint** — answers 401 without a
   session token. Obtaining that token means working around an access control,
   so it was not pursued.
+- **SEC EDGAR** — answers 403 "Request Rate Threshold Exceeded" on the very
+  first request from this container, which is shared-IP reputation rather than
+  anything this project did.
+
+Three independent sources, all refusing cloud egress. Treat "a free financial
+API will work from CI" as false until proven otherwise on the actual runner.
 - **Node's `fetch` against Nasdaq** — dies with "other side closed" after 30
   seconds where curl gets a 200 in two, which is why the script shells out to
   curl with `--http1.1` (its HTTP/2 streams abort with INTERNAL_ERROR). Keep
   that if the script is ever revived.
 
-Two routes remain, and the owner has to pick:
+The remaining route is **a free API key** (Finnhub or similar — free tier, no
+card): point `fetch-earnings.mjs` at it, hold the key in a repository secret,
+re-enable the cron. The owner has not asked for this yet.
 
-1. **A free API key** (Finnhub or similar — free tier, no card) gives real
-   announced dates. Point `fetch-earnings.mjs` at it, hold the key in a
-   repository secret, re-enable the cron.
-2. **SEC EDGAR** is official, explicitly welcomes automated clients and needs
-   no key, but publishes *past* filings. The next report can only be estimated
-   from the filing cadence, and the UI would have to say "expected", not
-   promise a date.
+Until then `useEarnings` makes **one attempt per page load** and then stops, so
+a missing feed costs one 404 rather than one on every refocus. Nothing else
+needs changing when a feed finally appears.
 
 Both workflows write the same `data` branch, so **each one fetches the branch
 first and puts the other's file back** before force-pushing. Breaking that
@@ -170,6 +174,7 @@ src/
     storage.ts          localStorage, validation, v1→v2 migration
     notify.ts           Notification permission and display
     backup.ts           Export and restore the portfolio as a JSON file
+    persistence.ts      Persistent-storage request and backup staleness
   hooks/
     usePortfolio.ts     Owns holdings and every action on them
     useQuotes.ts        Keeps the price feed current (timer + on refocus)
@@ -177,6 +182,7 @@ src/
     useAlerts.ts        Runs detection and raises notifications
   components/           One component per file, presentational
   App.tsx               Composition and the edit sheet's open state
+  main.tsx              Mounts App inside ErrorBoundary
 ```
 
 `lib/` is pure and trivially testable, `hooks/` own state and side effects,
@@ -211,6 +217,19 @@ migrates a v1 portfolio on first load.
 
 If `PortfolioState` changes incompatibly, bump to v3 and migrate — do not drop
 people's data.
+
+Two things guard against losing it, since there is nowhere else it exists:
+
+- `persistence.ts` asks for **persistent storage** on load, so the browser
+  does not evict the site under storage pressure. Installed web apps are
+  normally granted it; where it is refused the backup panel says so plainly
+  rather than hiding it.
+- The backup panel **nudges** when no export has ever been made, or none in
+  30 days. Exporting or restoring records the timestamp.
+
+`ErrorBoundary` wraps the app in `main.tsx`. A thrown render would otherwise
+leave a blank page, and on a home-screen app there is no address bar to retry
+from. It says the portfolio is safe and offers a reload.
 
 ## Verifying
 
@@ -257,14 +276,19 @@ provider; CI does not.
 0. **Feed the earnings calendar.** The UI is built and waiting; nothing
    produces the file. See "The earnings calendar" above for what was tried and
    the two routes left.
-1. **Push when the app is closed.** The headline missing feature, and the only
-   one that cannot be built here. It needs a server: somewhere to store push
-   subscriptions and VAPID keys, plus a job that checks prices and posts to the
-   push endpoints. GitHub Actions can do the sending — Web Push is just a
-   signed HTTPS POST — but there is nowhere safe to keep subscriptions, because
-   a browser cannot write to GitHub without an exposed token, and the repo is
-   public. Cloudflare Workers on the free plan closes it (cron down to a
-   minute, free KV or D1, no credit card). Costs the owner one free account.
+1. **Push when the app is closed, and per-user storage.** Both need the same
+   thing: a server. Push needs somewhere to hold subscriptions and VAPID keys
+   plus a job that posts to the push endpoints; sync needs somewhere to hold
+   each portfolio. GitHub Actions can do the sending — Web Push is just a
+   signed HTTPS POST — but there is nowhere safe to keep subscriptions,
+   because a browser cannot write to GitHub without an exposed token and the
+   repo is public. Cloudflare Workers on the free plan closes both (cron down
+   to a minute, free KV or D1, no credit card).
+
+   **The owner was asked and chose to stay without a server for now.** When it
+   is revisited, he picked the identity model already: a random **sync code**,
+   no email and no password — generated per device, typed on a second device
+   to pull the same portfolio. Do not build sign-up forms.
 2. **Price history and a chart** of portfolio value over time. Would need the
    price Action to append to a history file rather than replace it.
 3. **Dividends and fees** in the profit calculation.
